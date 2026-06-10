@@ -109,6 +109,7 @@ export default function GenrePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       setToken(session.access_token);
+      supabase.realtime.setAuth(session.access_token);
 
       // ホスト判定
       const res = await fetch(`/api/rooms/${id}`);
@@ -124,7 +125,7 @@ export default function GenrePage() {
     init();
   }, [id, router]);
 
-  // Realtime + ポーリング: rooms.status 変化を監視（ゲスト用の自動遷移）
+  // Realtime
   useEffect(() => {
     const channel = supabase
       .channel(`room:${id}:genre_status`)
@@ -136,7 +137,13 @@ export default function GenrePage() {
           if (status === "shop_voting") router.replace(`/room/${id}/vote`);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) supabase.realtime.setAuth(session.access_token);
+          });
+        }
+      });
 
     const poll = setInterval(() => {
       fetch(`/api/rooms/${id}`)

@@ -169,6 +169,7 @@ export default function VotePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       setToken(session.access_token);
+      supabase.realtime.setAuth(session.access_token);
 
       const [roomRes, shopsRes] = await Promise.all([
         fetch(`/api/rooms/${id}`),
@@ -202,7 +203,7 @@ export default function VotePage() {
     init();
   }, [id, router]);
 
-  // Realtime + ポーリング: rooms.status が finished になったら結果画面へ
+  // Realtime
   useEffect(() => {
     const channel = supabase
       .channel(`room:${id}:vote_status`)
@@ -214,7 +215,13 @@ export default function VotePage() {
           if (status === "finished") router.replace(`/room/${id}/result`);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) supabase.realtime.setAuth(session.access_token);
+          });
+        }
+      });
 
     const poll = setInterval(() => {
       fetch(`/api/rooms/${id}`)

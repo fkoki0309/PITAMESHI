@@ -70,6 +70,7 @@ export default function WaitingRoomPage() {
 
       if (session?.user) {
         userId = session.user.id;
+        supabase.realtime.setAuth(session.access_token);
       } else {
         const { data, error: authError } = await supabase.auth.signInAnonymously();
         if (authError || !data.session) {
@@ -77,6 +78,7 @@ export default function WaitingRoomPage() {
           return;
         }
         userId = data.session.user.id;
+        supabase.realtime.setAuth(data.session.access_token);
       }
       setCurrentUserId(userId);
 
@@ -111,16 +113,13 @@ export default function WaitingRoomPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Realtime: participants の増減・rooms のステータス変化を監視
+  // Realtime
   useEffect(() => {
     const refreshCount = () => {
       fetch(`/api/rooms/${id}`)
         .then((r) => r.json())
         .then((data) => {
           if (data.participant_count !== undefined) setParticipantCount(data.participant_count);
-          if (data.status === "genre_voting") router.replace(`/room/${id}/genre`);
-          else if (data.status === "shop_voting") router.replace(`/room/${id}/vote`);
-          else if (data.status === "finished") router.replace(`/room/${id}/result`);
         });
     };
 
@@ -141,9 +140,14 @@ export default function WaitingRoomPage() {
           else if (status === "finished") router.replace(`/room/${id}/result`);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) supabase.realtime.setAuth(session.access_token);
+          });
+        }
+      });
 
-    // Realtime が届かない場合のフォールバック（3秒ごとにポーリング）
     const poll = setInterval(refreshCount, 3000);
 
     return () => {
