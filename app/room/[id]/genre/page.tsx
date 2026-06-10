@@ -125,6 +125,28 @@ export default function GenrePage() {
     init();
   }, [id, router]);
 
+  // ハートビート + タブ離脱時の即時通知
+  useEffect(() => {
+    if (!token) return;
+    const sendPing = () => fetch("/api/ping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ room_id: id }),
+    });
+    sendPing();
+    const interval = setInterval(sendPing, 10000);
+
+    const handleUnload = () => {
+      navigator.sendBeacon("/api/ping/leave", JSON.stringify({ room_id: id, token }));
+    };
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", handleUnload);
+    };
+  }, [token, id]);
+
   // Realtime
   useEffect(() => {
     const channel = supabase

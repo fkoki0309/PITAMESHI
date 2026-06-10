@@ -45,6 +45,7 @@ export default function WaitingRoomPage() {
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState("");
   const [starting, setStarting] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const roomUrl = `${appUrl}/room/${id}`;
@@ -70,6 +71,7 @@ export default function WaitingRoomPage() {
 
       if (session?.user) {
         userId = session.user.id;
+        setToken(session.access_token);
         supabase.realtime.setAuth(session.access_token);
       } else {
         const { data, error: authError } = await supabase.auth.signInAnonymously();
@@ -78,6 +80,7 @@ export default function WaitingRoomPage() {
           return;
         }
         userId = data.session.user.id;
+        setToken(data.session.access_token);
         supabase.realtime.setAuth(data.session.access_token);
       }
       setCurrentUserId(userId);
@@ -158,6 +161,28 @@ export default function WaitingRoomPage() {
       clearInterval(poll);
     };
   }, [id, router]);
+
+  // ハートビート + タブ離脱時の即時通知
+  useEffect(() => {
+    if (!token) return;
+    const sendPing = () => fetch("/api/ping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ room_id: id }),
+    });
+    sendPing();
+    const interval = setInterval(sendPing, 10000);
+
+    const handleUnload = () => {
+      navigator.sendBeacon("/api/ping/leave", JSON.stringify({ room_id: id, token }));
+    };
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", handleUnload);
+    };
+  }, [token, id]);
 
   // カウントダウン更新
   useEffect(() => {
