@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       .eq("id", room_id)
       .single();
 
-    if (allDone && room?.status === "genre_voting" && room.host_user_id === user.id) {
+    if (allDone && room?.status === "genre_voting") {
       const { data: allVotes } = await supabaseAdmin
         .from("genre_votes")
         .select("genre_code, result")
@@ -87,7 +87,43 @@ export async function POST(req: NextRequest) {
       { onConflict: "room_id,shop_id,user_id" }
     );
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true });
+
+    // 全員完了チェック
+    const [{ data: participants }, { data: shops }, { data: votes }] = await Promise.all([
+      supabaseAdmin.from("participants").select("user_id").eq("room_id", room_id),
+      supabaseAdmin.from("shops").select("id").eq("room_id", room_id),
+      supabaseAdmin.from("shop_votes").select("user_id").eq("room_id", room_id),
+    ]);
+
+    const participantIds = participants?.map((p) => p.user_id) ?? [];
+    const shopCount = shops?.length ?? 0;
+    const voteCounts: Record<string, number> = {};
+    for (const v of votes ?? []) {
+      voteCounts[v.user_id] = (voteCounts[v.user_id] ?? 0) + 1;
+    }
+    const completedIds = participantIds.filter((uid) => (voteCounts[uid] ?? 0) >= shopCount);
+    const allDone =
+      completedIds.length >= participantIds.length &&
+      participantIds.length > 0 &&
+      shopCount > 0;
+
+    if (allDone) {
+      const { data: room } = await supabaseAdmin
+        .from("rooms")
+        .select("status")
+        .eq("id", room_id)
+        .single();
+      if (room?.status === "shop_voting") {
+        await supabaseAdmin.from("rooms").update({ status: "finished" }).eq("id", room_id);
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      all_done: allDone,
+      completed_count: completedIds.length,
+      participant_count: participantIds.length,
+    });
   }
 
   return NextResponse.json({ error: "Invalid target_type" }, { status: 400 });

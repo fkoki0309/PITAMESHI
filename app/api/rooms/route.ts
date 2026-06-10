@@ -19,6 +19,8 @@ export async function POST(req: NextRequest) {
   const { location_lat, location_lng, location_name, budget, max_participants } =
     await req.json();
 
+  const expiresAt = new Date(Date.now() + 20 * 60 * 1000).toISOString();
+
   const { data: room, error } = await supabaseAdmin
     .from("rooms")
     .insert({
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
       location_name,
       budget,
       max_participants,
+      expires_at: expiresAt,
     })
     .select("id")
     .single();
