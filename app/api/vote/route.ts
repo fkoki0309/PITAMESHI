@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       .eq("id", room_id)
       .single();
 
-    if (allDone && room?.status === "genre_voting" && room.host_user_id === user.id) {
+    if (allDone && room?.status === "genre_voting") {
       const { data: allVotes } = await supabaseAdmin
         .from("genre_votes")
         .select("genre_code, result")
