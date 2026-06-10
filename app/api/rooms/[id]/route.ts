@@ -36,7 +36,7 @@ export async function PATCH(
 }
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const { id } = params;
@@ -55,10 +55,12 @@ export async function GET(
     return NextResponse.json({ error: "Room expired" }, { status: 410 });
   }
 
+  const activeThreshold = new Date(Date.now() - 25 * 1000).toISOString();
   const { count } = await supabaseAdmin
     .from("participants")
     .select("*", { count: "exact", head: true })
-    .eq("room_id", id);
+    .eq("room_id", id)
+    .gte("last_seen_at", activeThreshold);
 
   return NextResponse.json({
     id: room.id,

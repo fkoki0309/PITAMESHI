@@ -23,11 +23,13 @@ export async function POST(req: NextRequest) {
     );
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // 全員完了チェック（サーバーサイドで行う）
+    // 全員完了チェック（アクティブ参加者のみ）
+    const activeThreshold = new Date(Date.now() - 25 * 1000).toISOString();
     const { data: participants } = await supabaseAdmin
       .from("participants")
       .select("user_id")
-      .eq("room_id", room_id);
+      .eq("room_id", room_id)
+      .gte("last_seen_at", activeThreshold);
 
     const { data: votes } = await supabaseAdmin
       .from("genre_votes")
@@ -88,9 +90,10 @@ export async function POST(req: NextRequest) {
     );
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // 全員完了チェック
+    // 全員完了チェック（アクティブ参加者のみ）
+    const activeThreshold2 = new Date(Date.now() - 25 * 1000).toISOString();
     const [{ data: participants }, { data: shops }, { data: votes }] = await Promise.all([
-      supabaseAdmin.from("participants").select("user_id").eq("room_id", room_id),
+      supabaseAdmin.from("participants").select("user_id").eq("room_id", room_id).gte("last_seen_at", activeThreshold2),
       supabaseAdmin.from("shops").select("id").eq("room_id", room_id),
       supabaseAdmin.from("shop_votes").select("user_id").eq("room_id", room_id),
     ]);
