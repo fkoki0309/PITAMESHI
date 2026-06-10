@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/Toast";
 
 const BUDGET_LABELS: Record<string, string> = {
   B001: "〜500円",
@@ -46,6 +47,7 @@ export default function WaitingRoomPage() {
   const [countdown, setCountdown] = useState("");
   const [starting, setStarting] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const { showToast, ToastContainer } = useToast();
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const roomUrl = `${appUrl}/room/${id}`;
@@ -215,6 +217,7 @@ export default function WaitingRoomPage() {
     if (res.ok) {
       router.replace(`/room/${id}/genre`);
     } else {
+      showToast("投票開始に失敗しました。もう一度お試しください。");
       setStarting(false);
     }
   }
@@ -251,6 +254,7 @@ export default function WaitingRoomPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <ToastContainer />
       <main className="max-w-md mx-auto min-h-screen flex flex-col px-5 pt-12 pb-10 gap-6">
 
         {/* ヘッダー */}

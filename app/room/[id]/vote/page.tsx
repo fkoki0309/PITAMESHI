@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/Toast";
 
 type Shop = {
   id: string;
@@ -162,6 +163,7 @@ export default function VotePage() {
   const [participantCount, setParticipantCount] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
   const [isHost, setIsHost] = useState(false);
+  const { showToast, ToastContainer } = useToast();
 
   // 認証・店舗データ取得
   useEffect(() => {
@@ -247,8 +249,16 @@ export default function VotePage() {
 
     const poll = setInterval(() => {
       fetch(`/api/rooms/${id}`)
-        .then((r) => r.json())
+        .then((r) => {
+          if (r.status === 410) {
+            showToast("セッションが期限切れです");
+            setTimeout(() => router.replace("/"), 1500);
+            return null;
+          }
+          return r.json();
+        })
         .then((data) => {
+          if (!data) return;
           if (data.status === "finished") router.replace(`/room/${id}/result`);
         });
     }, 3000);
@@ -293,6 +303,7 @@ export default function VotePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
+        <ToastContainer />
         <main className="max-w-md mx-auto w-full min-h-screen flex flex-col px-5 pt-10 pb-6">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-lg font-bold text-foreground">店舗投票</h1>
@@ -310,6 +321,7 @@ export default function VotePage() {
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-5">
+        <ToastContainer />
         <div className="text-center">
           <p className="text-5xl mb-4">😢</p>
           <h1 className="text-xl font-bold text-foreground mb-2">{error}</h1>
@@ -322,6 +334,7 @@ export default function VotePage() {
   if (done) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-5">
+        <ToastContainer />
         <div className="text-center">
           <p className="text-5xl mb-4">✅</p>
           <h1 className="text-2xl font-bold text-foreground mb-2">投票完了！</h1>
@@ -334,6 +347,7 @@ export default function VotePage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <ToastContainer />
       <main className="max-w-md mx-auto w-full min-h-screen flex flex-col px-5 pt-10 pb-6">
 
         <div className="flex items-center justify-between mb-4">
