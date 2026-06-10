@@ -120,6 +120,9 @@ export default function WaitingRoomPage() {
         .then((r) => r.json())
         .then((data) => {
           if (data.participant_count !== undefined) setParticipantCount(data.participant_count);
+          if (data.status === "genre_voting") router.replace(`/room/${id}/genre`);
+          else if (data.status === "shop_voting") router.replace(`/room/${id}/vote`);
+          else if (data.status === "finished") router.replace(`/room/${id}/result`);
         });
     };
 
