@@ -124,7 +124,7 @@ export default function GenrePage() {
     init();
   }, [id, router]);
 
-  // Realtime: rooms.status 変化を監視（ゲスト用の自動遷移）
+  // Realtime + ポーリング: rooms.status 変化を監視（ゲスト用の自動遷移）
   useEffect(() => {
     const channel = supabase
       .channel(`room:${id}:genre_status`)
@@ -137,7 +137,20 @@ export default function GenrePage() {
         }
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    const poll = setInterval(() => {
+      fetch(`/api/rooms/${id}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.status === "shop_voting") router.replace(`/room/${id}/vote`);
+          else if (data.status === "finished") router.replace(`/room/${id}/result`);
+        });
+    }, 3000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
   }, [id, router]);
 
   async function handleSwipe(result: SwipeResult) {

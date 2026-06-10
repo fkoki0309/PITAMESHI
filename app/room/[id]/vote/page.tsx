@@ -202,7 +202,7 @@ export default function VotePage() {
     init();
   }, [id, router]);
 
-  // Realtime: rooms.status が finished になったら結果画面へ
+  // Realtime + ポーリング: rooms.status が finished になったら結果画面へ
   useEffect(() => {
     const channel = supabase
       .channel(`room:${id}:vote_status`)
@@ -215,7 +215,19 @@ export default function VotePage() {
         }
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    const poll = setInterval(() => {
+      fetch(`/api/rooms/${id}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.status === "finished") router.replace(`/room/${id}/result`);
+        });
+    }, 3000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
   }, [id, router]);
 
   async function handleSwipe(result: SwipeResult) {
