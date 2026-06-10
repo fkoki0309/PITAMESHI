@@ -170,7 +170,7 @@ export default function WaitingRoomPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setStarting(false); return; }
 
-    await fetch(`/api/rooms/${id}`, {
+    const res = await fetch(`/api/rooms/${id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -178,7 +178,11 @@ export default function WaitingRoomPage() {
       },
       body: JSON.stringify({ status: "genre_voting" }),
     });
-    setStarting(false);
+    if (res.ok) {
+      router.replace(`/room/${id}/genre`);
+    } else {
+      setStarting(false);
+    }
   }
 
   const isHost = room && currentUserId === room.host_user_id;
