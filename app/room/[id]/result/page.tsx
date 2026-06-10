@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/Toast";
 
 type ShopScore = {
   id: string;
@@ -28,6 +29,7 @@ export default function ResultPage() {
   const [isHost, setIsHost] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const { showToast, ToastContainer } = useToast();
 
   useEffect(() => {
     async function init() {
@@ -76,17 +78,25 @@ export default function ResultPage() {
     };
   }, [token, id]);
 
-  // 再投票検知：status が waiting に戻ったら待機画面へ
+  // 再投票検知・期限切れ検知
   useEffect(() => {
     const poll = setInterval(() => {
       fetch(`/api/rooms/${id}`)
-        .then((r) => r.json())
+        .then((r) => {
+          if (r.status === 410) {
+            showToast("セッションが期限切れです");
+            setTimeout(() => router.replace("/"), 1500);
+            return null;
+          }
+          return r.json();
+        })
         .then((data) => {
+          if (!data) return;
           if (data.status === "waiting") router.replace(`/room/${id}`);
         });
     }, 3000);
     return () => clearInterval(poll);
-  }, [id, router]);
+  }, [id, router, showToast]);
 
   async function handleReset() {
     if (resetting) return;
@@ -108,6 +118,7 @@ export default function ResultPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
+        <ToastContainer />
         <p className="text-muted-foreground">集計中...</p>
       </div>
     );
@@ -116,6 +127,7 @@ export default function ResultPage() {
   if (ranked.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-5">
+        <ToastContainer />
         <div className="text-center">
           <p className="text-4xl mb-4">😢</p>
           <p className="text-lg font-bold text-foreground">結果が取得できませんでした</p>
@@ -131,6 +143,7 @@ export default function ResultPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <ToastContainer />
       <main className="max-w-md mx-auto min-h-screen flex flex-col px-5 pt-10 pb-10 gap-6">
 
         {/* ヘッダー */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/Toast";
 
 const GENRES = [
   { code: "G001", name: "居酒屋", emoji: "🍺", color: "#f97316", bg: "#fff7ed" },
@@ -102,6 +103,7 @@ export default function GenrePage() {
   const [completedCount, setCompletedCount] = useState(0);
   const [isHost, setIsHost] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const { showToast, ToastContainer } = useToast();
 
   // 認証・部屋情報取得
   useEffect(() => {
@@ -169,8 +171,16 @@ export default function GenrePage() {
 
     const poll = setInterval(() => {
       fetch(`/api/rooms/${id}`)
-        .then((r) => r.json())
+        .then((r) => {
+          if (r.status === 410) {
+            showToast("セッションが期限切れです");
+            setTimeout(() => router.replace("/"), 1500);
+            return null;
+          }
+          return r.json();
+        })
         .then((data) => {
+          if (!data) return;
           if (data.status === "shop_voting") router.replace(`/room/${id}/vote`);
           else if (data.status === "finished") router.replace(`/room/${id}/result`);
         });
@@ -220,6 +230,7 @@ export default function GenrePage() {
   if (done) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-5">
+        <ToastContainer />
         <div className="text-center">
           <p className="text-5xl mb-4">✅</p>
           <h1 className="text-2xl font-bold text-foreground mb-2">投票完了！</h1>
@@ -234,6 +245,7 @@ export default function GenrePage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <ToastContainer />
       <main className="max-w-md mx-auto w-full min-h-screen flex flex-col px-5 pt-10 pb-6">
 
         {/* ヘッダー */}
