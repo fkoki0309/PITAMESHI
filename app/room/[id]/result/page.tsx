@@ -130,7 +130,13 @@ export default function ResultPage() {
         <ToastContainer />
         <div className="text-center">
           <p className="text-4xl mb-4">😢</p>
-          <p className="text-lg font-bold text-foreground">結果が取得できませんでした</p>
+          <p className="text-lg font-bold text-foreground mb-6">結果が取得できませんでした</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 rounded-2xl bg-primary text-white font-bold active:scale-95 transition-transform"
+          >
+            画面を更新する
+          </button>
         </div>
       </div>
     );

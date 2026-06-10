@@ -32,6 +32,15 @@ export async function PATCH(
     .update({ status })
     .eq("id", params.id);
 
+  // 再投票時（waiting に戻す）は前回の投票データをリセット
+  if (status === "waiting") {
+    await Promise.all([
+      supabaseAdmin.from("genre_votes").delete().eq("room_id", params.id),
+      supabaseAdmin.from("shop_votes").delete().eq("room_id", params.id),
+      supabaseAdmin.from("shops").delete().eq("room_id", params.id),
+    ]);
+  }
+
   return NextResponse.json({ ok: true });
 }
 

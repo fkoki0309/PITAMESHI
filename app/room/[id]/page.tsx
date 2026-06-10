@@ -233,12 +233,20 @@ export default function WaitingRoomPage() {
         <div className="text-center">
           <p className="text-4xl mb-4">😢</p>
           <p className="text-lg font-bold text-foreground mb-2">{error}</p>
-          <button
-            onClick={() => router.push("/")}
-            className="mt-4 px-6 py-3 rounded-xl bg-primary text-white font-bold"
-          >
-            トップへ戻る
-          </button>
+          <div className="flex flex-col gap-3 mt-4">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 rounded-2xl bg-primary text-white font-bold active:scale-95 transition-transform"
+            >
+              画面を更新する
+            </button>
+            <button
+              onClick={() => router.push("/")}
+              className="px-6 py-3 rounded-2xl border-2 border-muted-foreground/30 text-muted-foreground font-bold active:scale-95 transition-transform"
+            >
+              トップへ戻る
+            </button>
+          </div>
         </div>
       </div>
     );
