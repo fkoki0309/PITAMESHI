@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 const GENRES = [
   { code: "G001", name: "居酒屋", emoji: "🍺", color: "#f97316", bg: "#fff7ed" },
@@ -19,6 +20,7 @@ const GENRES = [
 
 type SwipeResult = "yes" | "maybe" | "no";
 
+
 function SwipeCard({
   genre,
   onSwipe,
@@ -31,21 +33,15 @@ function SwipeCard({
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
-
-  // オーバーレイ透過度
   const yesOpacity = useTransform(x, [30, 100], [0, 1]);
   const noOpacity = useTransform(x, [-100, -30], [1, 0]);
   const maybeOpacity = useTransform(y, [-100, -30], [1, 0]);
 
   function handleDragEnd(_: unknown, info: { offset: { x: number; y: number }; velocity: { x: number; y: number } }) {
     const { offset, velocity } = info;
-    if (offset.x > 100 || velocity.x > 500) {
-      onSwipe("yes");
-    } else if (offset.x < -100 || velocity.x < -500) {
-      onSwipe("no");
-    } else if (offset.y < -80 || velocity.y < -500) {
-      onSwipe("maybe");
-    }
+    if (offset.x > 100 || velocity.x > 500) onSwipe("yes");
+    else if (offset.x < -100 || velocity.x < -500) onSwipe("no");
+    else if (offset.y < -80 || velocity.y < -500) onSwipe("maybe");
   }
 
   if (!isTop) {
@@ -70,10 +66,7 @@ function SwipeCard({
         height: "100%",
         background: genre.bg,
         border: `3px solid ${genre.color}44`,
-        x,
-        y,
-        rotate,
-        zIndex: 1,
+        x, y, rotate, zIndex: 1,
       }}
       drag
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
@@ -81,42 +74,19 @@ function SwipeCard({
       onDragEnd={handleDragEnd}
       whileTap={{ scale: 1.02 }}
     >
-      {/* YES オーバーレイ */}
-      <motion.div
-        className="absolute inset-0 rounded-3xl flex items-center justify-center"
-        style={{ opacity: yesOpacity, background: "#22c55e22" }}
-      >
+      <motion.div className="absolute inset-0 rounded-3xl flex items-center justify-center" style={{ opacity: yesOpacity, background: "#22c55e22" }}>
         <span className="text-6xl font-black text-green-500 rotate-[-20deg] border-4 border-green-500 rounded-xl px-4 py-1">YES</span>
       </motion.div>
-
-      {/* NO オーバーレイ */}
-      <motion.div
-        className="absolute inset-0 rounded-3xl flex items-center justify-center"
-        style={{ opacity: noOpacity, background: "#ef444422" }}
-      >
+      <motion.div className="absolute inset-0 rounded-3xl flex items-center justify-center" style={{ opacity: noOpacity, background: "#ef444422" }}>
         <span className="text-6xl font-black text-red-500 rotate-[20deg] border-4 border-red-500 rounded-xl px-4 py-1">NOPE</span>
       </motion.div>
-
-      {/* MAYBE オーバーレイ */}
-      <motion.div
-        className="absolute inset-0 rounded-3xl flex items-center justify-center"
-        style={{ opacity: maybeOpacity, background: "#f59e0b22" }}
-      >
+      <motion.div className="absolute inset-0 rounded-3xl flex items-center justify-center" style={{ opacity: maybeOpacity, background: "#f59e0b22" }}>
         <span className="text-5xl font-black text-yellow-500 border-4 border-yellow-500 rounded-xl px-4 py-1">MAYBE</span>
       </motion.div>
-
-      {/* カード本体 */}
       <div className="flex flex-col items-center justify-center h-full gap-6 px-6 select-none">
         <span className="text-8xl">{genre.emoji}</span>
-        <h2
-          className="text-3xl font-black text-center"
-          style={{ color: genre.color }}
-        >
-          {genre.name}
-        </h2>
-        <p className="text-sm text-muted-foreground text-center">
-          右スワイプ ❤️　上スワイプ 🤔　左スワイプ ✕
-        </p>
+        <h2 className="text-3xl font-black text-center" style={{ color: genre.color }}>{genre.name}</h2>
+        <p className="text-sm text-muted-foreground text-center">右スワイプ ❤️　上スワイプ 🤔　左スワイプ ✕</p>
       </div>
     </motion.div>
   );
@@ -124,21 +94,80 @@ function SwipeCard({
 
 export default function GenrePage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [results, setResults] = useState<{ code: string; result: SwipeResult }[]>([]);
   const [lastResult, setLastResult] = useState<SwipeResult | null>(null);
   const [done, setDone] = useState(false);
+  const [participantCount, setParticipantCount] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [isHost, setIsHost] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
 
-  function handleSwipe(result: SwipeResult) {
+  // 認証・部屋情報取得
+  useEffect(() => {
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      setToken(session.access_token);
+
+      // ホスト判定
+      const res = await fetch(`/api/rooms/${id}`);
+      if (!res.ok) return;
+      const room = await res.json();
+      setParticipantCount(room.participant_count);
+      setIsHost(session.user.id === room.host_user_id);
+
+      // ステータスが genre_voting でなければリダイレクト
+      if (room.status === "shop_voting") router.replace(`/room/${id}/vote`);
+      if (room.status === "finished") router.replace(`/room/${id}/result`);
+    }
+    init();
+  }, [id, router]);
+
+  // Realtime: rooms.status 変化を監視（ゲスト用の自動遷移）
+  useEffect(() => {
+    const channel = supabase
+      .channel(`room:${id}:genre_status`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rooms", filter: `id=eq.${id}` },
+        (payload) => {
+          const status = (payload.new as { status: string }).status;
+          if (status === "shop_voting") router.replace(`/room/${id}/vote`);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, router]);
+
+  async function handleSwipe(result: SwipeResult) {
     const genre = GENRES[currentIndex];
     setLastResult(result);
-    setResults((prev) => [...prev, { code: genre.code, result }]);
     setTimeout(() => setLastResult(null), 600);
 
-    if (currentIndex + 1 >= GENRES.length) {
+    const nextIndex = currentIndex + 1;
+    const isLast = nextIndex >= GENRES.length;
+
+    if (isLast) {
       setDone(true);
     } else {
-      setCurrentIndex((i) => i + 1);
+      setCurrentIndex(nextIndex);
+    }
+
+    // DBに保存（APIレスポンスで完了チェック）
+    if (token) {
+      const res = await fetch("/api/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ room_id: id, target_id: genre.code, target_type: "genre", result }),
+      });
+      const body = await res.json();
+      if (body.completed_count !== undefined) setCompletedCount(body.completed_count);
+      if (body.participant_count !== undefined) setParticipantCount(body.participant_count);
+      // ホスト かつ 全員完了 → vote 画面へ
+      if (body.all_done && isHost) {
+        router.replace(`/room/${id}/vote`);
+      }
     }
   }
 
@@ -152,8 +181,10 @@ export default function GenrePage() {
         <div className="text-center">
           <p className="text-5xl mb-4">✅</p>
           <h1 className="text-2xl font-bold text-foreground mb-2">投票完了！</h1>
-          <p className="text-muted-foreground text-sm">他の参加者を待っています…</p>
-          <p className="text-xs text-muted-foreground mt-6 font-mono">{id}</p>
+          <p className="text-muted-foreground">
+            {completedCount} / {participantCount}人が完了
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">他の参加者を待っています…</p>
         </div>
       </div>
     );
@@ -172,12 +203,19 @@ export default function GenrePage() {
         </div>
 
         {/* 進捗バー */}
-        <div className="w-full h-2 bg-secondary rounded-full mb-6">
+        <div className="w-full h-2 bg-secondary rounded-full mb-2">
           <div
             className="h-2 bg-primary rounded-full transition-all"
             style={{ width: `${(currentIndex / GENRES.length) * 100}%` }}
           />
         </div>
+
+        {/* 参加者進捗 */}
+        {participantCount > 0 && (
+          <p className="text-xs text-muted-foreground text-center mb-4">
+            {participantCount}人中 {completedCount}人が投票完了
+          </p>
+        )}
 
         {/* カードエリア */}
         <div className="relative flex-1" style={{ minHeight: 360 }}>
@@ -204,24 +242,9 @@ export default function GenrePage() {
 
         {/* ボタン操作 */}
         <div className="flex items-center justify-center gap-6 mt-6">
-          <button
-            onClick={() => handleSwipe("no")}
-            className="w-16 h-16 rounded-full bg-white border-2 border-red-300 text-3xl shadow flex items-center justify-center active:scale-90 transition-transform"
-          >
-            ✕
-          </button>
-          <button
-            onClick={() => handleSwipe("maybe")}
-            className="w-14 h-14 rounded-full bg-white border-2 border-yellow-300 text-2xl shadow flex items-center justify-center active:scale-90 transition-transform"
-          >
-            🤔
-          </button>
-          <button
-            onClick={() => handleSwipe("yes")}
-            className="w-16 h-16 rounded-full bg-white border-2 border-green-300 text-3xl shadow flex items-center justify-center active:scale-90 transition-transform"
-          >
-            ❤️
-          </button>
+          <button onClick={() => handleSwipe("no")} className="w-16 h-16 rounded-full bg-white border-2 border-red-300 text-3xl shadow flex items-center justify-center active:scale-90 transition-transform">✕</button>
+          <button onClick={() => handleSwipe("maybe")} className="w-14 h-14 rounded-full bg-white border-2 border-yellow-300 text-2xl shadow flex items-center justify-center active:scale-90 transition-transform">🤔</button>
+          <button onClick={() => handleSwipe("yes")} className="w-16 h-16 rounded-full bg-white border-2 border-green-300 text-3xl shadow flex items-center justify-center active:scale-90 transition-transform">❤️</button>
         </div>
 
         {/* 操作説明 */}
