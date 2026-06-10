@@ -325,7 +325,13 @@ export default function VotePage() {
         <div className="text-center">
           <p className="text-5xl mb-4">😢</p>
           <h1 className="text-xl font-bold text-foreground mb-2">{error}</h1>
-          <p className="text-sm text-muted-foreground">もう一度お試しください</p>
+          <p className="text-sm text-muted-foreground mb-6">もう一度お試しください</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 rounded-2xl bg-primary text-white font-bold active:scale-95 transition-transform"
+          >
+            画面を更新する
+          </button>
         </div>
       </div>
     );
