@@ -5,14 +5,10 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 const BUDGET_OPTIONS = [
-  { code: "B001", label: "〜500円" },
-  { code: "B002", label: "501〜1,000円" },
-  { code: "B003", label: "1,001〜1,500円" },
-  { code: "B008", label: "1,501〜2,000円" },
-  { code: "B009", label: "2,001〜3,000円" },
-  { code: "B010", label: "3,001〜4,000円" },
-  { code: "B011", label: "4,001〜5,000円" },
-  { code: "B013", label: "5,001〜7,000円" },
+  { code: "B002", label: "1,000円以内" },
+  { code: "B009", label: "3,000円以内" },
+  { code: "B011", label: "5,000円以内" },
+  { code: "B013", label: "指定なし" },
 ];
 
 export default function NewRoomPage() {
