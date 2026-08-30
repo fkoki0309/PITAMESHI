@@ -7,14 +7,10 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/Toast";
 
 const BUDGET_LABELS: Record<string, string> = {
-  B001: "〜500円",
-  B002: "501〜1,000円",
-  B003: "1,001〜1,500円",
-  B008: "1,501〜2,000円",
-  B009: "2,001〜3,000円",
-  B010: "3,001〜4,000円",
-  B011: "4,001〜5,000円",
-  B013: "5,001〜7,000円",
+  B002: "1,000円以内",
+  B009: "3,000円以内",
+  B011: "5,000円以内",
+  B013: "指定なし",
 };
 
 type RoomData = {
