@@ -11,11 +11,6 @@ const BUDGET_OPTIONS = [
   { code: "B013", label: "指定なし" },
 ];
 
-const MAX_PARTICIPANTS_MIN = 1;
-const MAX_PARTICIPANTS_MAX = 20;
-const MAX_PARTICIPANTS_ERROR =
-  `人数は${MAX_PARTICIPANTS_MIN}〜${MAX_PARTICIPANTS_MAX}の範囲で入力してください`;
-
 export default function NewRoomPage() {
   const router = useRouter();
   const [locationName, setLocationName] = useState("");
@@ -23,8 +18,6 @@ export default function NewRoomPage() {
   const [locationLng, setLocationLng] = useState<number | null>(null);
   const [budget, setBudget] = useState("B009");
   const [maxParticipants, setMaxParticipants] = useState(10);
-  const [maxParticipantsInput, setMaxParticipantsInput] = useState("10");
-  const [maxParticipantsError, setMaxParticipantsError] = useState("");
   const [locating, setLocating] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -71,29 +64,8 @@ export default function NewRoomPage() {
     );
   }
 
-  const updateMaxParticipants = (value: number) => {
-    if (!Number.isFinite(value)) {
-      setMaxParticipantsError(MAX_PARTICIPANTS_ERROR);
-      return false;
-    }
-
-    if (value < MAX_PARTICIPANTS_MIN || value > MAX_PARTICIPANTS_MAX) {
-      setMaxParticipantsError(MAX_PARTICIPANTS_ERROR);
-      return false;
-    }
-
-    setMaxParticipantsError("");
-    setMaxParticipants(value);
-    setMaxParticipantsInput(String(value));
-    return true;
-  };
-
   async function handleCreate() {
     if (!locationLat || !locationLng || !locationName) return;
-    if (maxParticipants < MAX_PARTICIPANTS_MIN || maxParticipants > MAX_PARTICIPANTS_MAX) {
-      setError(MAX_PARTICIPANTS_ERROR);
-      return;
-    }
     setCreating(true);
     setError("");
     try {
@@ -212,80 +184,23 @@ export default function NewRoomPage() {
               <label className="text-base font-bold text-foreground">
                 最大参加人数
               </label>
-              <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-white px-3 py-2 shadow-sm">
-                <input
-                  type="number"
-                  min={MAX_PARTICIPANTS_MIN}
-                  max={MAX_PARTICIPANTS_MAX}
-                  step={1}
-                  value={maxParticipantsInput}
-                  onChange={(e) => {
-                    const rawValue = e.target.value;
-                    if (rawValue === "") {
-                      setMaxParticipantsInput("");
-                      setMaxParticipantsError("");
-                      return;
-                    }
-
-                    const nextValue = Number(rawValue);
-                    if (!Number.isFinite(nextValue)) {
-                      setMaxParticipantsError(MAX_PARTICIPANTS_ERROR);
-                      return;
-                    }
-
-                    if (nextValue < MAX_PARTICIPANTS_MIN || nextValue > MAX_PARTICIPANTS_MAX) {
-                      setMaxParticipantsError(MAX_PARTICIPANTS_ERROR);
-                      setMaxParticipantsInput(rawValue);
-                      return;
-                    }
-
-                    updateMaxParticipants(nextValue);
-                  }}
-                  onBlur={() => {
-                    if (maxParticipantsInput === "") {
-                      setMaxParticipantsInput(String(maxParticipants));
-                      setMaxParticipantsError("");
-                      return;
-                    }
-
-                    const value = Number(maxParticipantsInput);
-                    if (!Number.isFinite(value)) {
-                      setMaxParticipantsInput(String(maxParticipants));
-                      setMaxParticipantsError("");
-                      return;
-                    }
-
-                    if (value < MAX_PARTICIPANTS_MIN || value > MAX_PARTICIPANTS_MAX) {
-                      setMaxParticipantsError(MAX_PARTICIPANTS_ERROR);
-                      return;
-                    }
-
-                    updateMaxParticipants(value);
-                  }}
-                  className="w-16 border-none bg-transparent text-right text-xl font-bold text-primary outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <span className="text-sm font-semibold text-foreground">人</span>
-              </div>
+              <span className="text-3xl font-bold text-primary">
+                {maxParticipants}人
+              </span>
             </div>
             <input
               type="range"
-              min={MAX_PARTICIPANTS_MIN}
-              max={MAX_PARTICIPANTS_MAX}
+              min={2}
+              max={20}
               value={maxParticipants}
-              onChange={(e) => {
-                const nextValue = Number(e.target.value);
-                updateMaxParticipants(nextValue);
-              }}
+              onChange={(e) => setMaxParticipants(Number(e.target.value))}
               style={{ accentColor: "#f97316" }}
               className="w-full h-2 cursor-pointer"
             />
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{MAX_PARTICIPANTS_MIN}人</span>
-              <span>{MAX_PARTICIPANTS_MAX}人</span>
+              <span>2人</span>
+              <span>20人</span>
             </div>
-            {maxParticipantsError && (
-              <p className="text-sm text-red-600">{maxParticipantsError}</p>
-            )}
           </div>
 
           {/* エラー表示 */}
