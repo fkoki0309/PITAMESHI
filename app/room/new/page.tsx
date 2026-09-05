@@ -18,6 +18,8 @@ export default function NewRoomPage() {
   const [locationLng, setLocationLng] = useState<number | null>(null);
   const [budget, setBudget] = useState("B009");
   const [maxParticipants, setMaxParticipants] = useState(10);
+  const [participantInput, setParticipantInput] = useState("10");
+  const [participantError, setParticipantError] = useState("");
   const [locating, setLocating] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -184,16 +186,43 @@ export default function NewRoomPage() {
               <label className="text-base font-bold text-foreground">
                 最大参加人数
               </label>
-              <span className="text-3xl font-bold text-primary">
-                {maxParticipants}人
-              </span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={participantInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setParticipantInput(raw);
+                    const num = Number(raw);
+                    if (!raw || isNaN(num)) {
+                      setParticipantError("数値を入力してください");
+                    } else if (num < 2 || num > 20) {
+                      setParticipantError("2〜20人の範囲で入力してください");
+                    } else {
+                      setParticipantError("");
+                      setMaxParticipants(num);
+                    }
+                  }}
+                  className="w-16 text-center text-2xl font-bold text-primary border-2 border-primary rounded-xl py-1 outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <span className="text-base font-bold text-foreground">人</span>
+              </div>
             </div>
+            {participantError && (
+              <p className="text-sm text-red-500">{participantError}</p>
+            )}
             <input
               type="range"
               min={2}
               max={20}
               value={maxParticipants}
-              onChange={(e) => setMaxParticipants(Number(e.target.value))}
+              onChange={(e) => {
+                const num = Number(e.target.value);
+                setMaxParticipants(num);
+                setParticipantInput(String(num));
+                setParticipantError("");
+              }}
               style={{ accentColor: "#f97316" }}
               className="w-full h-2 cursor-pointer"
             />
@@ -214,7 +243,7 @@ export default function NewRoomPage() {
           <div className="mt-auto flex flex-col gap-2">
             <button
               onClick={handleCreate}
-              disabled={!locationName || creating}
+              disabled={!locationName || creating || !!participantError}
               className="w-full py-5 rounded-2xl bg-primary text-primary-foreground text-xl font-bold shadow-md active:scale-95 transition-transform disabled:opacity-40"
             >
               {creating ? "作成中..." : "部屋を作る"}
