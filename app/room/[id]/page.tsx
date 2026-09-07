@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/Toast";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
 
 const BUDGET_LABELS: Record<string, string> = {
   B002: "1,000円以内",
@@ -160,27 +161,7 @@ export default function WaitingRoomPage() {
     };
   }, [id, router]);
 
-  // ハートビート + タブ離脱時の即時通知
-  useEffect(() => {
-    if (!token) return;
-    const sendPing = () => fetch("/api/ping", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ room_id: id }),
-    });
-    sendPing();
-    const interval = setInterval(sendPing, 10000);
-
-    const handleUnload = () => {
-      navigator.sendBeacon("/api/ping/leave", JSON.stringify({ room_id: id, token }));
-    };
-    window.addEventListener("beforeunload", handleUnload);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("beforeunload", handleUnload);
-    };
-  }, [token, id]);
+  useHeartbeat(token, id);
 
   // カウントダウン更新
   useEffect(() => {
