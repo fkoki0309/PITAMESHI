@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/Toast";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
 
 type ShopScore = {
   id: string;
@@ -56,27 +57,7 @@ export default function ResultPage() {
     init();
   }, [id]);
 
-  // ハートビート + タブ離脱時の即時通知
-  useEffect(() => {
-    if (!token) return;
-    const sendPing = () => fetch("/api/ping", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ room_id: id }),
-    });
-    sendPing();
-    const interval = setInterval(sendPing, 10000);
-
-    const handleUnload = () => {
-      navigator.sendBeacon("/api/ping/leave", JSON.stringify({ room_id: id, token }));
-    };
-    window.addEventListener("beforeunload", handleUnload);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("beforeunload", handleUnload);
-    };
-  }, [token, id]);
+  useHeartbeat(token, id);
 
   // 再投票検知・期限切れ検知
   useEffect(() => {
