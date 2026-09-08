@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/Toast";
@@ -30,6 +30,7 @@ export default function ResultPage() {
   const [isHost, setIsHost] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const navigatedRef = useRef(false);
   const { showToast, ToastContainer } = useToast();
 
   useEffect(() => {
@@ -73,7 +74,10 @@ export default function ResultPage() {
         })
         .then((data) => {
           if (!data) return;
-          if (data.status === "waiting") router.replace(`/room/${id}`);
+          if (data.status === "waiting" && !navigatedRef.current) {
+            navigatedRef.current = true;
+            router.replace(`/room/${id}`);
+          }
         });
     }, 3000);
     return () => clearInterval(poll);

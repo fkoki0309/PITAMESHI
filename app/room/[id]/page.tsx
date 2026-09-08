@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/Toast";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { usePresence } from "@/hooks/usePresence";
 
 const BUDGET_LABELS: Record<string, string> = {
   B002: "1,000円以内",
@@ -37,8 +38,8 @@ export default function WaitingRoomPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [room, setRoom] = useState<RoomData | null>(null);
-  const [participantCount, setParticipantCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const navigatedRef = useRef(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState("");
@@ -58,7 +59,6 @@ export default function WaitingRoomPage() {
     }
     const data: RoomData = await res.json();
     setRoom(data);
-    setParticipantCount(data.participant_count);
     return data;
   }, [id]);
 
@@ -115,35 +115,21 @@ export default function WaitingRoomPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Realtime
+  // ステータス変化検知（Realtime + ポーリングによるフォールバック）
   useEffect(() => {
-    const refreshCount = () => {
-      fetch(`/api/rooms/${id}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.participant_count !== undefined) setParticipantCount(data.participant_count);
-          if (data.status === "genre_voting") router.replace(`/room/${id}/genre`);
-          else if (data.status === "shop_voting") router.replace(`/room/${id}/vote`);
-          else if (data.status === "finished") router.replace(`/room/${id}/result`);
-        });
+    const navigate = (status: string) => {
+      if (navigatedRef.current) return;
+      if (status === "genre_voting") { navigatedRef.current = true; router.replace(`/room/${id}/genre`); }
+      else if (status === "shop_voting") { navigatedRef.current = true; router.replace(`/room/${id}/vote`); }
+      else if (status === "finished") { navigatedRef.current = true; router.replace(`/room/${id}/result`); }
     };
 
     const channel = supabase
-      .channel(`room:${id}:participants`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "participants", filter: `room_id=eq.${id}` },
-        refreshCount
-      )
+      .channel(`room:${id}:status`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "rooms", filter: `id=eq.${id}` },
-        (payload) => {
-          const status = (payload.new as { status: string }).status;
-          if (status === "genre_voting") router.replace(`/room/${id}/genre`);
-          else if (status === "shop_voting") router.replace(`/room/${id}/vote`);
-          else if (status === "finished") router.replace(`/room/${id}/result`);
-        }
+        (payload) => navigate((payload.new as { status: string }).status)
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -153,15 +139,27 @@ export default function WaitingRoomPage() {
         }
       });
 
-    const poll = setInterval(refreshCount, 3000);
+    const poll = setInterval(() => {
+      fetch(`/api/rooms/${id}`)
+        .then((r) => {
+          if (r.status === 410) {
+            showToast("セッションが期限切れです");
+            setTimeout(() => router.replace("/"), 1500);
+            return null;
+          }
+          return r.json();
+        })
+        .then((data) => { if (data) navigate(data.status); });
+    }, 3000);
 
     return () => {
       supabase.removeChannel(channel);
       clearInterval(poll);
     };
-  }, [id, router]);
+  }, [id, router, showToast]);
 
   useHeartbeat(token, id);
+  const participantCount = usePresence(id, currentUserId);
 
   // カウントダウン更新
   useEffect(() => {

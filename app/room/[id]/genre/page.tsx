@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,7 @@ import { SwipeCard, SwipeResult, Genre } from "@/components/SwipeCard";
 import { SwipeButtons } from "@/components/SwipeButtons";
 import { VoteCompletedScreen } from "@/components/VoteCompletedScreen";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { usePresence } from "@/hooks/usePresence";
 
 const GENRES: Genre[] = [
   { code: "G001", name: "居酒屋", emoji: "🍺", color: "#f97316", bg: "#fff7ed" },
@@ -29,10 +30,11 @@ export default function GenrePage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lastResult, setLastResult] = useState<SwipeResult | null>(null);
   const [done, setDone] = useState(false);
-  const [participantCount, setParticipantCount] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
   const [isHost, setIsHost] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const navigatedRef = useRef(false);
   const { showToast, ToastContainer } = useToast();
 
   useEffect(() => {
@@ -40,12 +42,12 @@ export default function GenrePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       setToken(session.access_token);
+      setUserId(session.user.id);
       supabase.realtime.setAuth(session.access_token);
 
       const res = await fetch(`/api/rooms/${id}`);
       if (!res.ok) return;
       const room = await res.json();
-      setParticipantCount(room.participant_count);
       setIsHost(session.user.id === room.host_user_id);
 
       if (room.status === "shop_voting") router.replace(`/room/${id}/vote`);
@@ -55,15 +57,19 @@ export default function GenrePage() {
   }, [id, router]);
 
   useHeartbeat(token, id);
+  const participantCount = usePresence(id, userId);
 
   useEffect(() => {
+    const navigate = (status: string) => {
+      if (navigatedRef.current) return;
+      if (status === "shop_voting") { navigatedRef.current = true; router.replace(`/room/${id}/vote`); }
+      else if (status === "finished") { navigatedRef.current = true; router.replace(`/room/${id}/result`); }
+    };
+
     const channel = supabase
       .channel(`room:${id}:genre_status`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "rooms", filter: `id=eq.${id}` },
-        (payload) => {
-          const status = (payload.new as { status: string }).status;
-          if (status === "shop_voting") router.replace(`/room/${id}/vote`);
-        }
+        (payload) => navigate((payload.new as { status: string }).status)
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -83,11 +89,7 @@ export default function GenrePage() {
           }
           return r.json();
         })
-        .then((data) => {
-          if (!data) return;
-          if (data.status === "shop_voting") router.replace(`/room/${id}/vote`);
-          else if (data.status === "finished") router.replace(`/room/${id}/result`);
-        });
+        .then((data) => { if (data) navigate(data.status); });
     }, 3000);
 
     return () => {
@@ -117,8 +119,8 @@ export default function GenrePage() {
       });
       const body = await res.json();
       if (body.completed_count !== undefined) setCompletedCount(body.completed_count);
-      if (body.participant_count !== undefined) setParticipantCount(body.participant_count);
-      if (body.all_done && isHost) {
+      if (body.all_done && isHost && !navigatedRef.current) {
+        navigatedRef.current = true;
         router.replace(`/room/${id}/vote`);
       }
     }
