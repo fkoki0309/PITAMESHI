@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,7 @@ import { ShopCard, SkeletonCard, Shop } from "@/components/ShopCard";
 import { SwipeButtons } from "@/components/SwipeButtons";
 import { VoteCompletedScreen } from "@/components/VoteCompletedScreen";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { usePresence } from "@/hooks/usePresence";
 import { SwipeResult } from "@/components/SwipeCard";
 
 export default function VotePage() {
@@ -22,9 +23,10 @@ export default function VotePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [participantCount, setParticipantCount] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
   const [completedCount, setCompletedCount] = useState(0);
   const [isHost, setIsHost] = useState(false);
+  const navigatedRef = useRef(false);
   const { showToast, ToastContainer } = useToast();
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export default function VotePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       setToken(session.access_token);
+      setUserId(session.user.id);
       supabase.realtime.setAuth(session.access_token);
 
       const [roomRes, shopsRes] = await Promise.all([
@@ -41,7 +44,6 @@ export default function VotePage() {
 
       if (roomRes.ok) {
         const room = await roomRes.json();
-        setParticipantCount(room.participant_count ?? 0);
         setIsHost(session.user.id === room.host_user_id);
         if (room.status === "finished") { router.replace(`/room/${id}/result`); return; }
       }
@@ -64,14 +66,20 @@ export default function VotePage() {
   }, [id, router]);
 
   useHeartbeat(token, id);
+  const participantCount = usePresence(id, userId);
 
   useEffect(() => {
+    const navigate = () => {
+      if (navigatedRef.current) return;
+      navigatedRef.current = true;
+      router.replace(`/room/${id}/result`);
+    };
+
     const channel = supabase
       .channel(`room:${id}:vote_status`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "rooms", filter: `id=eq.${id}` },
         (payload) => {
-          const status = (payload.new as { status: string }).status;
-          if (status === "finished") router.replace(`/room/${id}/result`);
+          if ((payload.new as { status: string }).status === "finished") navigate();
         }
       )
       .subscribe((status) => {
@@ -92,10 +100,7 @@ export default function VotePage() {
           }
           return r.json();
         })
-        .then((data) => {
-          if (!data) return;
-          if (data.status === "finished") router.replace(`/room/${id}/result`);
-        });
+        .then((data) => { if (data?.status === "finished") navigate(); });
     }, 3000);
 
     return () => {
@@ -124,8 +129,8 @@ export default function VotePage() {
       });
       const body = await res.json();
       if (body.completed_count !== undefined) setCompletedCount(body.completed_count);
-      if (body.participant_count !== undefined) setParticipantCount(body.participant_count);
-      if (body.all_done && isHost) {
+      if (body.all_done && isHost && !navigatedRef.current) {
+        navigatedRef.current = true;
         router.replace(`/room/${id}/result`);
       }
     }
